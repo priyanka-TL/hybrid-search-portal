@@ -269,6 +269,47 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.lineage-step.highlight {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent-hover);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.lineage-step.post-scoring {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.2);
+  border-style: dashed;
+}
+
+.lineage-divider {
+  text-align: center;
+  margin: 0.5rem 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  position: relative;
+}
+
+.lineage-divider::before,
+.lineage-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 20%;
+  height: 1px;
+  background: var(--border);
+}
+
+.lineage-divider::before {
+  left: 0;
+}
+
+.lineage-divider::after {
+  right: 0;
+}
+
 .lineage-step.final {
   background: rgba(16, 185, 129, 0.1);
   color: var(--success);

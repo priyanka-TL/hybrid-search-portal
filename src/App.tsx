@@ -171,19 +171,28 @@ function App() {
                 
                 {/* 1. Score Lineage Map */}
                 <section>
-                  <div className="score-box-title">1. Score Lineage Journey</div>
+                  <div className="score-box-title">1. Architecture Lineage Journey</div>
                   <div className="lineage-flow">
-                    <div className="lineage-step">Qdrant Raw Field Scores</div>
-                    <div className="lineage-arrow">→</div>
-                    <div className="lineage-step">Apply Field Weights</div>
-                    <div className="lineage-arrow">→</div>
-                    <div className="lineage-step">Aggregate Dense/Sparse</div>
-                    <div className="lineage-arrow">→</div>
-                    <div className="lineage-step">Min-Max Scale to [0,1]</div>
-                    <div className="lineage-arrow">→</div>
-                    <div className="lineage-step">Linear Combination</div>
-                    <div className="lineage-arrow">→</div>
-                    <div className="lineage-step final">Final API Score: {selectedItem.final_score.toFixed(4)}</div>
+                    <div className="lineage-step">1. Qdrant Raw Field Scores (Cosine/Dot Product)</div>
+                    <div className="lineage-arrow">↓</div>
+                    <div className="lineage-step">2. Python RRF Computation (Bypassed for ranking)</div>
+                    <div className="lineage-arrow">↓</div>
+                    <div className="lineage-step">3. Hybrid Mode Detection Gate</div>
+                    <div className="lineage-arrow">↓</div>
+                    <div className="lineage-step highlight">4. Intra-Modality Field Weighting (Raw Dense)</div>
+                    <div className="lineage-arrow">↓</div>
+                    <div className="lineage-step highlight">5. Min-Max Normalization [0, 1]</div>
+                    <div className="lineage-arrow">↓</div>
+                    <div className="lineage-step highlight">6. Cross-Modality Linear Combination</div>
+                    
+                    {/* Post-Scoring Phases */}
+                    <div className="lineage-divider">Post-Scoring Pipeline (Vector Service)</div>
+                    
+                    <div className="lineage-step post-scoring">7. Title/Summary Boost Injection</div>
+                    <div className="lineage-arrow">↓</div>
+                    <div className="lineage-step post-scoring">8. Detail_Filter Threshold Gate</div>
+                    <div className="lineage-arrow">↓</div>
+                    <div className="lineage-step final">9. Final API Result List (Top K)</div>
                   </div>
                 </section>
 
@@ -266,26 +275,25 @@ function App() {
 
                 {/* 5. Final API Score Explanation */}
                 <section>
-                  <div className="score-box-title">5. Final API Score Normalization</div>
+                  <div className="score-box-title">5. Cross-Modality Linear Combination</div>
                   <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                    <p style={{ margin: '0 0 1rem 0' }}><strong>Why is the final score {selectedItem.final_score.toFixed(4)}?</strong></p>
+                    <p style={{ margin: '0 0 1rem 0' }}><strong>Why does the API return {selectedItem.final_score.toFixed(4)}?</strong></p>
                     <ul style={{ margin: '0 0 1rem 0', paddingLeft: '1.5rem', lineHeight: '1.6', color: 'var(--text-muted)' }}>
                       <li><strong>Min-Max Scaling:</strong> To combine the Dense Score ({selectedItem.raw_dense_score.toFixed(4)}) and Sparse Score ({selectedItem.raw_sparse_score.toFixed(4)}), the backend applies Min-Max normalization <code>(score - min) / (max - min)</code> across the entire retrieved candidate pool.</li>
-                      <li><strong>RRF Ignored:</strong> While the RRF score is calculated for logging, it is <em>bypassed</em> in the final <code>_rank_results</code> logic.</li>
-                      <li><strong>Linear Combination:</strong> The normalized scores are scaled by the Global Hybrid Weights and summed.</li>
+                      <li><strong>Modality Weighting:</strong> The normalized scores are linearly combined using the global Hybrid Weights (not to be confused with Field Weights).</li>
                     </ul>
                     
                     <div className="math-block">
                       <div className="math-row">
-                        <span>Dense Normalized ({selectedItem.norm_dense_score.toFixed(4)}) × Dense Weight ({data.dense_weight})</span>
+                        <span>Dense Normalized ({selectedItem.norm_dense_score.toFixed(4)}) × Modality Weight ({data.dense_weight})</span>
                         <span>= {(selectedItem.norm_dense_score * data.dense_weight).toFixed(4)}</span>
                       </div>
                       <div className="math-row">
-                        <span>+ Sparse Normalized ({selectedItem.norm_sparse_score.toFixed(4)}) × Sparse Weight ({data.sparse_weight})</span>
+                        <span>+ Sparse Normalized ({selectedItem.norm_sparse_score.toFixed(4)}) × Modality Weight ({data.sparse_weight})</span>
                         <span>= {(selectedItem.norm_sparse_score * data.sparse_weight).toFixed(4)}</span>
                       </div>
                       <div className="math-row math-total" style={{ color: 'var(--success)', fontWeight: 'bold', paddingTop: '0.5rem', marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-                        <span>Final Score</span>
+                        <span>Final Weighted Score</span>
                         <span>= {selectedItem.final_score.toFixed(4)}</span>
                       </div>
                     </div>
