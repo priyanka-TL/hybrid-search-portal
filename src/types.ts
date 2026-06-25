@@ -33,10 +33,18 @@ export interface DebugFusionResultItem {
 export interface DebugSearchResponse {
     query: string;
     embedding_model: string;
+    fusion_method: string; // "weighted" (default) or "rrf"
+    rrf_k: number;
     timing: DebugTiming;
     field_weights: Record<string, number>;
     dense_weight: number;
     sparse_weight: number;
+    // Optional: only present when the debug server has been restarted with the
+    // pool-stats change. Guard before use so an older backend doesn't crash the UI.
+    dense_min?: number;
+    dense_max?: number;
+    sparse_min?: number;
+    sparse_max?: number;
     dense_results: DebugResultItem[];
     sparse_results: DebugResultItem[];
     fusion_results: DebugFusionResultItem[];

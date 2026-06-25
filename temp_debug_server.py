@@ -60,10 +60,20 @@ class DebugFusionResultItem(BaseModel):
 
 class DebugSearchResponse(BaseModel):
     query: str
+    embedding_model: str
+    fusion_method: str
+    rrf_k: int
     timing: DebugTiming
     field_weights: Dict[str, float]
     dense_weight: float
     sparse_weight: float
+    # Candidate-pool min/max used by the min-max normalization step. These are the
+    # actual (min, max) over the whole retrieved pool, so the portal can show the
+    # exact (score - min) / (max - min) calculation per document.
+    dense_min: float
+    dense_max: float
+    sparse_min: float
+    sparse_max: float
     dense_results: List[DebugResultItem]
     sparse_results: List[DebugResultItem]
     fusion_results: List[DebugFusionResultItem]
@@ -141,7 +151,16 @@ def debug_search(request: PrioritizedSearchRequest):
 
     norm_dense = min_max_normalize(raw_dense)
     norm_sparse = min_max_normalize(raw_sparse)
-    
+
+    # Pool min/max that the normalization above is based on — surfaced so the portal
+    # can render the exact (score - min) / (max - min) arithmetic.
+    dense_vals = list(raw_dense.values())
+    sparse_vals = list(raw_sparse.values())
+    dense_min = min(dense_vals) if dense_vals else 0.0
+    dense_max = max(dense_vals) if dense_vals else 0.0
+    sparse_min = min(sparse_vals) if sparse_vals else 0.0
+    sparse_max = max(sparse_vals) if sparse_vals else 0.0
+
     dense_w = settings.HYBRID_DENSE_WEIGHT
     sparse_w = settings.HYBRID_SPARSE_WEIGHT
 
@@ -182,7 +201,11 @@ def debug_search(request: PrioritizedSearchRequest):
         ))
 
     t2 = time.time()
-    # Rank results
+    # Rank results (this is the authoritative fused score the API returns).
+    # _rank_results stashes the real fusion diagnostics on each entry:
+    #   keyword_score, rrf_score, dense_rank, sparse_rank.
+    # In "weighted" mode rrf_score/dense_rank/sparse_rank are None (no RRF computed);
+    # in "rrf" mode they carry the values that actually produced the ranking.
     ranked = search_service._rank_results(
         all_results=all_results,
         field_scores=field_scores,
@@ -195,12 +218,17 @@ def debug_search(request: PrioritizedSearchRequest):
     fusion_results = []
     for rank_idx, item in enumerate(ranked):
         pid = item['id']
-        drank = next((i + 1 for i, d in enumerate(dense_items) if d["id"] == pid), None)
-        srank = next((i + 1 for i, s in enumerate(sparse_items) if s["id"] == pid), None)
-        
-        # Get raw field scores without rrf/bm25 for display
-        raw_fs = {k: v for k, v in field_scores[pid].items() if k not in ("rrf", sparse_name)}
-        
+        # Manual ranks (always available) — used in "weighted" mode where the backend
+        # does not compute per-modality ranks. In "rrf" mode prefer the backend's own
+        # ranks since those are what fed the fusion.
+        manual_drank = next((i + 1 for i, d in enumerate(dense_items) if d["id"] == pid), None)
+        manual_srank = next((i + 1 for i, s in enumerate(sparse_items) if s["id"] == pid), None)
+        drank = item.get("dense_rank") if item.get("dense_rank") is not None else manual_drank
+        srank = item.get("sparse_rank") if item.get("sparse_rank") is not None else manual_srank
+
+        # Get raw field scores without the internal sparse key for display
+        raw_fs = {k: v for k, v in field_scores[pid].items() if k != sparse_name}
+
         fusion_results.append(DebugFusionResultItem(
             id=pid,
             title=all_results[pid].payload.get("title"),
@@ -212,7 +240,8 @@ def debug_search(request: PrioritizedSearchRequest):
             norm_dense_score=norm_dense.get(pid, 0.0),
             raw_sparse_score=raw_sparse.get(pid, 0.0),
             norm_sparse_score=norm_sparse.get(pid, 0.0),
-            rrf_score=field_scores[pid].get("rrf", 0.0),
+            # Raw RRF value (pre-normalization), populated only in "rrf" fusion mode.
+            rrf_score=item.get("rrf_score") or 0.0,
             final_score=item.get("weighted_score", 0.0),
             metadata=all_results[pid].payload.get("metadata", {})
         ))
@@ -229,10 +258,16 @@ def debug_search(request: PrioritizedSearchRequest):
     return DebugSearchResponse(
         query=request.query,
         embedding_model=settings.EMBEDDING_MODEL,
+        fusion_method=settings.HYBRID_FUSION_METHOD,
+        rrf_k=settings.RRF_K,
         timing=timing,
         field_weights=search_service.default_weights,
         dense_weight=dense_w,
         sparse_weight=sparse_w,
+        dense_min=dense_min,
+        dense_max=dense_max,
+        sparse_min=sparse_min,
+        sparse_max=sparse_max,
         dense_results=dense_results,
         sparse_results=sparse_results,
         fusion_results=fusion_results
